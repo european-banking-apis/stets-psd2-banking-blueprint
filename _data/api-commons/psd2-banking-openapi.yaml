@@ -1,0 +1,1730 @@
+swagger: '2.0'
+
+info:
+  version: "1.2.3"
+  title: PSD2 ASPSP services for AISP, PISP and PIISP.
+  description: |
+    This API intends to provide an interface between
+    - Account Servicing Payment Service Providers (ASPSP)
+    - Third Party (Payment Service) Providers (TPP)
+
+    TPP may act with different roles as described below:
+    - Account Information Service Providers (AISP)
+    - Payment Initiation Service Providers (PISP)
+    - Payment Instrument Issuer Service Providers (PIISP)
+
+    The Payment Service User (PSU) is the owner of the accounts held by the ASPSP and gives accreditations to the TPP in order to access his accounts information or initiates payment from these accounts
+
+    The API is designed on a REST model using JSON structures.
+
+    The Richardson Maturity Model is applied on level three using HAL HYPERMEDIA links
+  contact:
+    name: STET
+    url: http://www.stet.eu
+    email: psd2@stet.eu
+  license:
+    name: Creative Commons Attribution 3.0 France (CC BY 3.0 FR)
+
+### The [basePath] directive might be customized within each implementation
+basePath: /v1
+
+schemes:
+  - https
+
+produces:
+  - application/hal+json
+  - application/json
+
+consumes:
+  - application/json
+
+securityDefinitions:
+  accessCode:
+    description: |
+      In order to access the PSU's account information, the AISP needs to get an authorization code grant OAUTH2 token.
+    type: oauth2
+    scopes:
+      aisp: Access by a AISP to one given PSU's account
+      piisp: Access by a PIISP to one given PSU's account to chack payment coverage
+    flow: accessCode
+    ### The [authorizationUrl] and [tokenUrl] directives might be customized within each implementation
+    authorizationUrl: https://oauth2.aspsp/authorization
+    tokenUrl: https://oauth2.aspsp/token
+  clientCredentials:
+    description: |
+      In order to post a payment activation request, the PISP needs to get an client credential OAUTH2 token.
+    type: oauth2
+    scopes:
+      pisp: Access by a PISP to payments resources
+    flow: application
+    ### The [tokenUrl] directives might be customized within each implementation
+    tokenUrl: https://oauth2.aspsp/token
+
+paths:
+  /accounts:
+    get:
+      tags:
+        - AISP
+      summary: Gets the psu context, i.e. the detailed authorizations given by the PSU to the AISP.
+      description: |
+        Returns all accounts that the PSU made accessible to the TPP.
+
+        Thanks to HYPERMEDIA, each account is returned with the links aiming to ease access to the relevant transactions and balances.
+
+        The ASPSP takes into account the access token that establishes the link between the PSU and the AISP.
+
+        The result may be subject to pagination (i.e. retrieving a partial result in case of having too many results) through a set of pages by the ASPSP. Thereafter, the AISP may ask for the first, next, previous or last page of results.
+      security:
+        - accessCode:
+            - aisp
+      parameters:
+        - $ref: '#/parameters/AuthorizationParameter'
+        - $ref: '#/parameters/PsuIpAddressHeader'
+        - $ref: '#/parameters/PsuIpPortHeader'
+        - $ref: '#/parameters/PsuHttpMethodHeader'
+        - $ref: '#/parameters/PsuTimeStampHeader'
+        - $ref: '#/parameters/PsuUserAgentHeader'
+        - $ref: '#/parameters/PsuRefererHeader'
+        - $ref: '#/parameters/PsuAcceptHeader'
+        - $ref: '#/parameters/PsuAcceptCharsetHeader'
+        - $ref: '#/parameters/PsuAcceptEncodingHeader'
+        - $ref: '#/parameters/PsuAcceptLanguageHeader'
+      responses:
+        "200":
+          description: |
+            The ASPSP return a PSU context
+            - listing the accounts that have been made available to the AISP by the PSU and,
+            - for each of these accounts, the further transactions that have been enabled by the PSU through HYPERMEDIA links.
+          schema:
+            $ref: '#/definitions/HalAccounts'
+        "204":
+          description: No content.
+        "401":
+          description: Unauthorized, authentification failure.
+          schema:
+            $ref: '#/definitions/ErrorModel'
+        "403":
+          description: Forbidden, authentication successful but access to resource is not allowed.
+          schema:
+            $ref: '#/definitions/ErrorModel'
+        "404":
+          description: Not found, no account available.
+          schema:
+            $ref: '#/definitions/ErrorModel'
+        "405":
+          description: Method Not Allowed.
+          schema:
+            $ref: '#/definitions/ErrorModel'
+        "406":
+          description: Not Acceptable.
+          schema:
+            $ref: '#/definitions/ErrorModel'
+        "429":
+          description: Too many requests.
+          schema:
+            $ref: '#/definitions/ErrorModel'
+        "500":
+          description: Internal server error.
+          schema:
+            $ref: '#/definitions/ErrorModel'
+
+  /accounts/{id}/balances-report:
+    get:
+      description: |
+        Returns a set of balances for a given PSU account that is specified by the AISP through a logical ID
+        - The ASPSP must provide at least  the accounting balance on the account.
+        - The ASPSP can provide other balance restitutions, e.g. instant balance, as well, if possible.
+      summary: Get authorized account balances
+      tags:
+        - AISP
+      security:
+        - accessCode:
+            - aisp
+      parameters:
+        - $ref: '#/parameters/AuthorizationParameter'
+        - $ref: '#/parameters/IdParameter'
+        - $ref: '#/parameters/PsuIpAddressHeader'
+        - $ref: '#/parameters/PsuIpPortHeader'
+        - $ref: '#/parameters/PsuHttpMethodHeader'
+        - $ref: '#/parameters/PsuTimeStampHeader'
+        - $ref: '#/parameters/PsuUserAgentHeader'
+        - $ref: '#/parameters/PsuRefererHeader'
+        - $ref: '#/parameters/PsuAcceptHeader'
+        - $ref: '#/parameters/PsuAcceptCharsetHeader'
+        - $ref: '#/parameters/PsuAcceptEncodingHeader'
+        - $ref: '#/parameters/PsuAcceptLanguageHeader'
+      responses:
+        "200":
+          description: The ASPSP answers with a list of account balances
+          schema:
+            $ref: '#/definitions/HalBalances'
+        "204":
+          description: No content.
+        "400":
+          description: Invalid status value
+        "401":
+          description: Unauthorized, authentification failure.
+          schema:
+            $ref: '#/definitions/ErrorModel'
+        "403":
+          description: Forbidden, authentication successful but access to resource is not allowed.
+          schema:
+            $ref: '#/definitions/ErrorModel'
+        "404":
+          description: Not found, no account available.
+          schema:
+            $ref: '#/definitions/ErrorModel'
+        "405":
+          description: Method Not Allowed.
+          schema:
+            $ref: '#/definitions/ErrorModel'
+        "406":
+          description: Not Acceptable.
+          schema:
+            $ref: '#/definitions/ErrorModel'
+        "429":
+          description: Too many requests.
+          schema:
+            $ref: '#/definitions/ErrorModel'
+        "500":
+          description: Internal server error.
+          schema:
+            $ref: '#/definitions/ErrorModel'
+
+  /accounts/{id}/transactions:
+    get:
+      description: |
+        Returns transactions for an account for a given PSU account that is specified by the AISP through a logical ID.
+        The request may use some filter parameter in order to restrict the query
+        - on a given imputation date range
+        - past a given incremental technical id
+
+        The result may be subject to pagination (i.e. retrieving a partial result in case of having too many results) through a set of pages by the ASPSP. Thereafter, the AISP may ask for the first, next, previous or last page of results.
+
+
+      summary: Get transactions for an authorized account
+      security:
+        - accessCode:
+            - aisp
+      tags:
+        - AISP
+      parameters:
+        - $ref: '#/parameters/AuthorizationParameter'
+        - $ref: '#/parameters/IdParameter'
+        - name: fromImputationDate
+          in: query
+          description: |
+            Inclusive minimal imputation date of the transactions.
+
+            Transactions having an imputation date equal to this parameter are included within the result.
+          required: false
+          type: string
+          format: date-time
+        - name: toImputationDate
+          in: query
+          description: |
+            Exclusive maximal imputation date of the transactions.
+
+            Transactions having an imputation date equal to this parameter are not included within the result.
+          required: false
+          type: string
+          format: date-time
+        - name: afterTransactionId
+          in: query
+          description: |
+            Specifies the value on which the result has to be computed.
+
+            Only the transaction having a technical identification greater than this value must be included within the result
+          required: false
+          type: string
+          maxLength: 16
+        - $ref: '#/parameters/PsuIpAddressHeader'
+        - $ref: '#/parameters/PsuIpPortHeader'
+        - $ref: '#/parameters/PsuHttpMethodHeader'
+        - $ref: '#/parameters/PsuTimeStampHeader'
+        - $ref: '#/parameters/PsuUserAgentHeader'
+        - $ref: '#/parameters/PsuRefererHeader'
+        - $ref: '#/parameters/PsuAcceptHeader'
+        - $ref: '#/parameters/PsuAcceptCharsetHeader'
+        - $ref: '#/parameters/PsuAcceptEncodingHeader'
+        - $ref: '#/parameters/PsuAcceptLanguageHeader'
+      responses:
+        "200":
+          description: Complete transactions response
+          schema:
+            $ref: '#/definitions/HalTransactions'
+        "204":
+          description: No content.
+        "400":
+          description: Invalid status value
+        "401":
+          description: Unauthorized, authentification failure.
+          schema:
+            $ref: '#/definitions/ErrorModel'
+        "403":
+          description: Forbidden, authentication successful but access to resource is not allowed.
+          schema:
+            $ref: '#/definitions/ErrorModel'
+        "404":
+          description: Not found, no account available.
+          schema:
+            $ref: '#/definitions/ErrorModel'
+        "405":
+          description: Method Not Allowed.
+          schema:
+            $ref: '#/definitions/ErrorModel'
+        "406":
+          description: Not Acceptable.
+          schema:
+            $ref: '#/definitions/ErrorModel'
+        "429":
+          description: Too many requests.
+          schema:
+            $ref: '#/definitions/ErrorModel'
+        "500":
+          description: Internal server error.
+          schema:
+            $ref: '#/definitions/ErrorModel'
+
+  /accounts/coverage-control:
+    post:
+      tags:
+        - PIISP
+      summary: check if a given amount can be covered by the available liquidity on a given account
+      description: |
+        The PISP can ask an ASPSP to check if a given amount can be covered by the liquidity that is available on a PSU cash account or payment card.
+
+        The ASPSP anwsers with a structure embedding the orginal request and the result as a boolean.
+      security:
+        - accessCode:
+            - piisp
+      parameters:
+        - $ref: '#/parameters/AuthorizationParameter'
+        - $ref: '#/parameters/PaymentCoverageRequest'
+        - $ref: '#/parameters/PsuIpAddressHeader'
+        - $ref: '#/parameters/PsuIpPortHeader'
+        - $ref: '#/parameters/PsuHttpMethodHeader'
+        - $ref: '#/parameters/PsuTimeStampHeader'
+        - $ref: '#/parameters/PsuUserAgentHeader'
+        - $ref: '#/parameters/PsuRefererHeader'
+        - $ref: '#/parameters/PsuAcceptHeader'
+        - $ref: '#/parameters/PsuAcceptCharsetHeader'
+        - $ref: '#/parameters/PsuAcceptEncodingHeader'
+        - $ref: '#/parameters/PsuAcceptLanguageHeader'
+      responses:
+        "200":
+          description: payment coverage request
+          schema:
+            $ref: '#/definitions/HalCreditorPaymentCoverageReport'
+        "400":
+          description: Invalid status value
+        "401":
+          description: Unauthorized, authentification failure.
+          schema:
+            $ref: '#/definitions/ErrorModel'
+        "403":
+          description: Forbidden, authentication successful but access to resource is not allowed.
+          schema:
+            $ref: '#/definitions/ErrorModel'
+        "405":
+          description: Method Not Allowed.
+          schema:
+            $ref: '#/definitions/ErrorModel'
+        "406":
+          description: Not Acceptable.
+          schema:
+            $ref: '#/definitions/ErrorModel'
+        "429":
+          description: Too many requests.
+          schema:
+            $ref: '#/definitions/ErrorModel'
+        "500":
+          description: Internal server error.
+          schema:
+            $ref: '#/definitions/ErrorModel'
+
+  /payment-requests:
+    post:
+      tags:
+        - PISP
+      summary: Initiates of a payment request on a PSU account on behalf of a merchant
+      description: |
+        The PISP sends a ISO20022 pain.013 based structure that specifies the payment activation request that i related to a commercial transaction between a PSU and the merchant.
+      security:
+        - clientCredentials:
+            - pisp
+      parameters:
+        - $ref: '#/parameters/AuthorizationParameter'
+        - $ref: '#/parameters/PaymentActivationRequest'
+        - $ref: '#/parameters/PsuIpAddressHeader'
+        - $ref: '#/parameters/PsuIpPortHeader'
+        - $ref: '#/parameters/PsuHttpMethodHeader'
+        - $ref: '#/parameters/PsuTimeStampHeader'
+        - $ref: '#/parameters/PsuUserAgentHeader'
+        - $ref: '#/parameters/PsuRefererHeader'
+        - $ref: '#/parameters/PsuAcceptHeader'
+        - $ref: '#/parameters/PsuAcceptCharsetHeader'
+        - $ref: '#/parameters/PsuAcceptEncodingHeader'
+        - $ref: '#/parameters/PsuAcceptLanguageHeader'
+        - $ref: '#/parameters/DigestHeader'
+        - $ref: '#/parameters/SignatureHeader'
+      responses:
+        "201":
+          description: Created
+          headers:
+            location:
+              description: URL of the created (and updated if needed) Payment Request
+              type: string
+            consent_approval_url:
+              description: URL to be used by the PISP in order to start the ASPSP SCA and consent management process
+              type: string
+        "400":
+          description: Invalid status value
+        "401":
+          description: Unauthorized, authentification failure.
+          schema:
+            $ref: '#/definitions/ErrorModel'
+        "403":
+          description: Forbidden, authentication successful but access to resource is not allowed.
+          schema:
+            $ref: '#/definitions/ErrorModel'
+        "405":
+          description: Method Not Allowed.
+          schema:
+            $ref: '#/definitions/ErrorModel'
+        "406":
+          description: Not Acceptable.
+          schema:
+            $ref: '#/definitions/ErrorModel'
+        "429":
+          description: Too many requests.
+          schema:
+            $ref: '#/definitions/ErrorModel'
+        "500":
+          description: Internal server error.
+          schema:
+            $ref: '#/definitions/ErrorModel'
+
+  /payment-requests/{paymentInformationId}:
+    get:
+      tags:
+        - PISP
+      summary: retrives a payment request previously posted on a PSU account on behalf of a merchant
+      description: |
+        The PISP has sent a payment request through a POST command.
+        The ASPSP has registered the payment request, updated if necessary the relevant identifiers in order to avoid duplicates and returned the location of the updated payment request.
+        The PISP may get the updated payment request through a GET command.
+      security:
+        - clientCredentials:
+            - pisp
+      parameters:
+        - $ref: '#/parameters/AuthorizationParameter'
+        - $ref: '#/parameters/PaymentInformationId'
+        - $ref: '#/parameters/PsuIpAddressHeader'
+        - $ref: '#/parameters/PsuIpPortHeader'
+        - $ref: '#/parameters/PsuHttpMethodHeader'
+        - $ref: '#/parameters/PsuTimeStampHeader'
+        - $ref: '#/parameters/PsuUserAgentHeader'
+        - $ref: '#/parameters/PsuRefererHeader'
+        - $ref: '#/parameters/PsuAcceptHeader'
+        - $ref: '#/parameters/PsuAcceptCharsetHeader'
+        - $ref: '#/parameters/PsuAcceptEncodingHeader'
+        - $ref: '#/parameters/PsuAcceptLanguageHeader'
+      responses:
+        "200":
+          description: register Payment Activation Request
+          schema:
+            $ref: '#/definitions/HalCreditorPaymentActivationRequest'
+        "400":
+          description: Invalid status value
+        "401":
+          description: Unauthorized, authentification failure.
+          schema:
+            $ref: '#/definitions/ErrorModel'
+        "403":
+          description: Forbidden, authentication successful but access to resource is not allowed.
+          schema:
+            $ref: '#/definitions/ErrorModel'
+        "404":
+          description: Not found, no request available.
+          schema:
+            $ref: '#/definitions/ErrorModel'
+        "405":
+          description: Method Not Allowed.
+          schema:
+            $ref: '#/definitions/ErrorModel'
+        "406":
+          description: Not Acceptable.
+          schema:
+            $ref: '#/definitions/ErrorModel'
+        "429":
+          description: Too many requests.
+          schema:
+            $ref: '#/definitions/ErrorModel'
+        "500":
+          description: Internal server error.
+          schema:
+            $ref: '#/definitions/ErrorModel'
+
+  /payment-requests/{paymentInformationId}/report:
+    get:
+      tags:
+        - PISP
+      summary: provides the client with Payment Request Status Report
+      description: |
+        The PISP ask for the status report of a previous payment activation request.
+
+        The ASPSP answers with an ISO20022 pain.014 based structure
+      security:
+        - clientCredentials:
+            - pisp
+      parameters:
+        - $ref: '#/parameters/AuthorizationParameter'
+        - $ref: '#/parameters/PaymentInformationId'
+        - $ref: '#/parameters/PsuIpAddressHeader'
+        - $ref: '#/parameters/PsuIpPortHeader'
+        - $ref: '#/parameters/PsuHttpMethodHeader'
+        - $ref: '#/parameters/PsuTimeStampHeader'
+        - $ref: '#/parameters/PsuUserAgentHeader'
+        - $ref: '#/parameters/PsuRefererHeader'
+        - $ref: '#/parameters/PsuAcceptHeader'
+        - $ref: '#/parameters/PsuAcceptCharsetHeader'
+        - $ref: '#/parameters/PsuAcceptEncodingHeader'
+        - $ref: '#/parameters/PsuAcceptLanguageHeader'
+      responses:
+        "200":
+          description: pain.014 based payment initiation request status report
+          schema:
+            $ref: '#/definitions/HalCreditorPaymentActivationRequestStatusReport'
+        "204":
+          description: No content.
+        "400":
+          description: Invalid status value
+        "401":
+          description: Unauthorized, authentification failure.
+          schema:
+            $ref: '#/definitions/ErrorModel'
+        "403":
+          description: Forbidden, authentication successful but access to resource is not allowed.
+          schema:
+            $ref: '#/definitions/ErrorModel'
+        "404":
+          description: Not found, no report available.
+          schema:
+            $ref: '#/definitions/ErrorModel'
+        "405":
+          description: Method Not Allowed.
+          schema:
+            $ref: '#/definitions/ErrorModel'
+        "406":
+          description: Not Acceptable.
+          schema:
+            $ref: '#/definitions/ErrorModel'
+        "429":
+          description: Too many requests.
+          schema:
+            $ref: '#/definitions/ErrorModel'
+        "500":
+          description: Internal server error.
+          schema:
+            $ref: '#/definitions/ErrorModel'
+  /payment-requests/{paymentInformationId}/confirmation:
+    post:
+      tags:
+        - PISP
+      summary: The PISP confirms its payment initiation request
+      description: |
+        The PISP confirms The previously posted payment initiation request.
+
+        The ASPSP answers with a status of the relevant request.
+      security:
+        - clientCredentials:
+            - pisp
+      parameters:
+        - $ref: '#/parameters/AuthorizationParameter'
+        - $ref: '#/parameters/PaymentInformationId'
+        - $ref: '#/parameters/PsuIpAddressHeader'
+        - $ref: '#/parameters/PsuIpPortHeader'
+        - $ref: '#/parameters/PsuHttpMethodHeader'
+        - $ref: '#/parameters/PsuTimeStampHeader'
+        - $ref: '#/parameters/PsuUserAgentHeader'
+        - $ref: '#/parameters/PsuRefererHeader'
+        - $ref: '#/parameters/PsuAcceptHeader'
+        - $ref: '#/parameters/PsuAcceptCharsetHeader'
+        - $ref: '#/parameters/PsuAcceptEncodingHeader'
+        - $ref: '#/parameters/PsuAcceptLanguageHeader'
+      responses:
+        "200":
+          description: pain.014 based transaction status report
+          schema:
+            $ref: '#/definitions/HalCreditorPaymentActivationRequestStatusReport'
+        "400":
+          description: Invalid status value
+        "401":
+          description: Unauthorized, authentification failure.
+          schema:
+            $ref: '#/definitions/ErrorModel'
+        "403":
+          description: Forbidden, authentication successful but access to resource is not allowed.
+          schema:
+            $ref: '#/definitions/ErrorModel'
+        "405":
+          description: Method Not Allowed.
+          schema:
+            $ref: '#/definitions/ErrorModel'
+        "406":
+          description: Not Acceptable.
+          schema:
+            $ref: '#/definitions/ErrorModel'
+        "429":
+          description: Too many requests.
+          schema:
+            $ref: '#/definitions/ErrorModel'
+        "500":
+          description: Internal server error.
+          schema:
+            $ref: '#/definitions/ErrorModel'
+
+
+definitions:
+
+  AccountIdentificationChoice:
+    description: Unique and unambiguous identification for the account between the account owner and the account servicer.
+    type: object
+    properties:
+      Iban:
+        description: |
+          ISO20022: International Bank Account Number (IBAN) - identification used internationally by financial institutions to uniquely identify the account of a customer.
+
+          Further specifications of the format and content of the IBAN can be found in the standard ISO 13616 "Banking and related financial services - International Bank Account Number (IBAN)" version 1997-10-01, or later revisions.
+        type: string
+        pattern: '^[A-Z]{2,2}[0-9]{2,2}[a-zA-Z0-9]{1,30}$'
+      Othr:
+        $ref: '#/definitions/GenericAccountIdentification'
+
+  AmountTypeChoice:
+    description: |
+      ISO20022: structure aiming to carry either an intructed amount or equivalent amount. Both structures embed the amount and the currency to be used.
+
+      API: only instructed amount can be used
+    type: object
+    required:
+      - InstdAmt
+      - Ccy
+    properties:
+      InstdAmt:
+        description: |
+          ISO20022: Amount of money to be moved between the debtor and creditor, before deduction of charges, expressed in the currency as ordered by the initiating party.
+        type: string
+        pattern: '^[0-9]{1,13}(\.[0-9]{0,5}){0,1}$'
+      Ccy:
+        description: |
+          ISO20022: Specifies the currency of the to be transferred amount, which is different from the currency of the debtor's account. A code allocated to a currency by a Maintenance Agency under an international identification scheme, as described in the latest edition of the international standard ISO 4217 "Codes for the representation of currencies and funds".
+        type: string
+        pattern: '^[A-Z]{3,3}$'
+
+  BranchAndFinancialInstitutionIdentification:
+    description: |
+          ISO20022: Set of elements used to uniquely and unambiguously identify a financial institution or a branch of a financial institution.
+
+          API: Only financial institution can be used.
+    type: object
+    required:
+      - FinInstnId
+    properties:
+      FinInstnId:
+        $ref: '#/definitions/FinancialInstitutionIdentification'
+
+  CashAccount:
+    description: |
+      ISO20022: Provides the details to identify an account.
+    type: object
+    required:
+      - Id
+    properties:
+      Id:
+        $ref: '#/definitions/AccountIdentificationChoice'
+
+  CategoryPurposeChoice:
+    description: |
+      ISO20022: Specifies the high level purpose of the instruction based on a set of pre-defined categories. This is used by the initiating party to provide information concerning the processing of the payment. It is likely to trigger special processing by any of the agents involved in the payment chain.
+    type: object
+    required:
+      - Cd
+    properties:
+      Cd:
+        description: |
+          API: Only "DVPM" value (Delivery against Payment) is allowed.
+        type: string
+        enum:
+          - DVPM
+
+  FinancialInstitutionIdentification:
+    description: |
+      ISO20022: Unique and unambiguous identification of a financial institution, as assigned under an internationally recognised or proprietary identification scheme.
+
+      API: Only <Bicfi> element is allowed
+    type: object
+    required:
+      - Bicfi
+    properties:
+      Bicfi:
+        description: |
+          ISO20022: Code allocated to a financial institution by the ISO 9362 Registration Authority as described in ISO 9362 "Banking - Banking telecommunication messages - Business identification code (BIC)".
+        type: string
+        pattern: '^[A-Z]{6,6}[A-Z2-9][A-NP-Z0-9]([A-Z0-9]{3,3}){0,1}$'
+
+  GenericAccountIdentification:
+    description: |
+      ISO20022: Unique identification of an account, as assigned by the account servicer, using an identification scheme.
+    type: object
+    required:
+      - Id
+      - Issr
+    properties:
+      Id:
+        description: |
+          API: alias of an account
+        type: string
+        maxLength: 70
+      Issr:
+        description: |
+          ISO20022: Entity that assigns the identification.
+        type: string
+        maxLength: 35
+
+
+  GenericOrganisationIdentification:
+    description: |
+      ISO20022: Unique identification of an organisation, as assigned by an institution, using an identification scheme.
+    type: object
+    required:
+      - Id
+      - Issr
+    properties:
+      Id:
+        description: |
+          ISO20022: Identification assigned by an institution.
+        type: string
+        maxLength: 35
+      Issr:
+        description: |
+          ISO20022: Entity that assigns the identification.
+        type: string
+        maxLength: 35
+
+  OrganisationIdentification:
+    description: |
+      ISO20022: Unique and unambiguous way to identify an organisation.
+    type: object
+    required:
+      - Othr
+    properties:
+      Othr:
+        $ref: '#/definitions/GenericOrganisationIdentification'
+
+  PartyChoice:
+    description: |
+      ISO20022: Unique and unambiguous identification of a party.
+
+      API: Only organizations can be specified within this structures
+    type: object
+    required:
+      - OrgId
+    properties:
+      OrgId:
+        $ref: '#/definitions/OrganisationIdentification'
+
+  PostalAddress:
+    description: |
+      ISO20022 : Information that locates and identifies a specific address, as defined by postal services.
+    type: object
+    required:
+      - Ctry
+      - AdrLine
+    properties:
+      Ctry:
+        description: |
+          ISO20022: Country in which a person resides (the place of a person's home). In the case of a company, it is the country from which the affairs of that company are directed.
+
+          API: Country of the PISP.
+        type: string
+        pattern: '^([A-Z]{2,2})$'
+      AdrLine:
+        description: Unstructured address. The two lines must embed zip code and town name
+        type: array
+        items:
+          description: Address line
+          type: string
+          maxItems: 2
+          maxLength: 70
+
+  PartyIdentification:
+    description: |
+      API : Description of a Party which can be either a person or an organization.
+    type: object
+    required:
+      - Nm
+    properties:
+      Nm:
+        description: |
+          ISO20022: Name by which a party is known and which is usually used to identify that party.
+
+          API: Name of the PISP
+        type: string
+        maxLength: 140
+      PstlAdr:
+        $ref: '#/definitions/PostalAddress'
+      Id:
+        $ref: '#/definitions/PartyChoice'
+
+  PaymentIdentification:
+    description: |
+      ISO20022: Set of elements used to reference a payment instruction.
+    type: object
+    required:
+      - InstrId
+      - EndToEndId
+    properties:
+      InstrId:
+        description: |
+          ISO20022: Unique identification as assigned by an instructing party for an instructed party to unambiguously identify the instruction.
+
+          API: Unique identification shared between the PISP and the ASPSP
+        type: string
+        pattern: '^([a-zA-Z0-9 /\-?:\()\.,'']{1,35})$'
+      InstrRscId:
+        description: |
+          API: dentifier assigned by the ASPSP for further use of the created resource through API calls
+        type: string
+        pattern: '^([a-zA-Z0-9 /\-?:\()\.,'']{1,35})$'
+      EndToEndId:
+        description: |
+          ISO20022: Unique identification assigned by the initiating party to unambiguously identify the transaction. This identification is passed on, unchanged, throughout the entire end-to-end chain.
+
+          API: Unique identification shared between the merchant and the PSU
+        type: string
+        pattern: '^([a-zA-Z0-9 /\-?:\()\.,'']{1,35})$'
+
+  PaymentMethodCode:
+    description: |
+      ISO20022: Specifies the transfer method that will be used to transfer the cash.
+
+      API: Only the "TRF" value (Credit Transfer) is allowed
+    type: string
+    enum:
+      - TRF
+
+  PaymentTypeInformation:
+    description: |
+      ISO20022: Set of elements used to further specify the type of transaction.
+    type: object
+    required:
+      - InstrPrty
+      - SvcLvl
+    properties:
+      InstrPrty:
+        $ref: '#/definitions/PriorityCode'
+      SvcLvl:
+        $ref: '#/definitions/ServiceLevelChoice'
+      CtgyPurp:
+        $ref: '#/definitions/CategoryPurposeChoice'
+
+  PriorityCode:
+    description: |
+      ISO20022: Indicator of the urgency or order of importance that the instructing party would like the instructed party to apply to the processing of the instruction.
+
+      API: The "HIGH" value will be used for Instant Payments. Otherwise the "NORM" value must be used
+    type: string
+    enum:
+      - HIGH
+      - NORM
+
+  PurposeChoice:
+    description: |
+      ISO20022: Underlying reason for the payment transaction.
+
+      API: Only <Cd> structure is allowed
+    type: object
+    required:
+      - Cd
+    properties:
+      Cd:
+        description: |
+          ISO20022: Underlying reason for the payment transaction, as published in an external purpose code list.
+
+          API: The following values are value are allowed for Payment initiation Request
+            - COMC Transaction is related to a payment of commercial credit or debit.
+            - CPKC General Carpark Charges Transaction is related to carpark charges.
+            - TRPT Transport RoadPricing Transaction is for the payment to top-up pre-paid card and electronic road pricing for the purpose of transportation
+
+        type: string
+        enum:
+          - COMC
+          - CPKC
+          - TRPT
+
+  RemittanceInformation:
+    description: |
+      ISO20022: Information supplied to enable the matching of an entry with the items that the transfer is intended to settle, such as commercial invoices in an accounts' receivable system.
+
+      API: Only <Ustrd> structure is allowed
+    type: object
+    required:
+      - Ustrd
+    properties:
+      Ustrd:
+        description: |
+          ISO20022: Information supplied to enable the matching/reconciliation of an entry with the items that the payment is intended to settle, such as commercial invoices in an accounts' receivable system, in an unstructured form.
+
+          API: Only one occurrence is allowed
+        type: array
+        items:
+          type: string
+          maxLength: 140
+          maxItems: 1
+
+  ServiceLevelChoice:
+    description: |
+      ISO20022: Agreement under which or rules under which the transaction should be processed.
+
+      API: Only the <Cd> structure is allowed
+    type: object
+    required:
+      - Cd
+    properties:
+      Cd:
+        description: |
+          ISO20022: Specifies a pre-agreed service or level of service between the parties, as published in an external service level code list.
+
+          API: Only "SEPA" (SEPA Credit Transfer) or "NURG" (Other Credit Transfer) values are allowed
+        type: string
+        enum:
+          - NURG
+          - SEPA
+
+  GenericLink:
+    description: hypertext reference
+    type: object
+    required:
+    - href
+    properties:
+      href:
+        description: URI to be used
+        type: string
+        maxLength: 140
+      templated:
+        description: specifies "true" if href is a URI template, i.e. with parameters. Otherwise, this property is absent or set to false
+        type: boolean
+
+  PaginationLinks:
+    description: |
+      Links that can be used for further navigation when browsing Account Informations at top level
+      - self: link to the list of all available accounts
+    type: object
+    required:
+    - self
+    properties:
+      self:
+        $ref: '#/definitions/GenericLink'
+      first:
+        $ref: '#/definitions/GenericLink'
+      last:
+        $ref: '#/definitions/GenericLink'
+      next:
+        $ref: '#/definitions/GenericLink'
+      prev:
+        $ref: '#/definitions/GenericLink'
+
+  AccountLinks:
+    description: |
+      links that can be used for further navigation when browsing Account Informations at one account level
+      - balances: link to the balances of a given account
+      - transactions: link to the transactions of a given account
+    type: object
+    properties:
+      balances:
+        $ref: '#/definitions/GenericLink'
+      transactions:
+        $ref: '#/definitions/GenericLink'
+
+  BalancesLinks:
+    description: |
+      links that can be used for further navigation when browsing Account Informations at one account level
+      - self: link to the balances of a given account
+      - parent-list: link to the list of all available accounts
+      - transactions: link to the transactions of a given account
+    type: object
+    required:
+      - self
+    properties:
+      self:
+        $ref: '#/definitions/GenericLink'
+      parent-list:
+        $ref: '#/definitions/GenericLink'
+      transactions:
+        $ref: '#/definitions/GenericLink'
+
+  TransactionsLinks:
+    description: |
+      links that can be used for further navigation when browsing Account Informations at one account level
+      - self: link to the transactions of a given account
+      - parent-list: link to the list of all available accounts
+      - balances: link to the balances of a given account
+      - first: link to the first page of the transactions result
+      - last: link to the last page of the transactions result
+      - next: link to the next page of the transactions result
+      - prev: link to the previous page of the transactions result
+    type: object
+    required:
+      - self
+    properties:
+      self:
+        $ref: '#/definitions/GenericLink'
+      parent-list:
+        $ref: '#/definitions/GenericLink'
+      balances:
+        $ref: '#/definitions/GenericLink'
+      first:
+        $ref: '#/definitions/GenericLink'
+      last:
+        $ref: '#/definitions/GenericLink'
+      next:
+        $ref: '#/definitions/GenericLink'
+      prev:
+        $ref: '#/definitions/GenericLink'
+
+  PaymentRequestLinks:
+    description: |
+      links that can be used for further navigation when having post a payment activation request in order to get the relevant status report.
+    type: object
+    properties:
+      status:
+        $ref: '#/definitions/GenericLink'
+
+  PaymentReportLinks:
+    description: |
+      links that can be used for further navigation.
+      - confirmation: link to confirm the payment
+      - paymentReport: link to get a status report for the relevant payment
+    type: object
+    required:
+      - self
+    properties:
+      self:
+        $ref: '#/definitions/GenericLink'
+      confirmation:
+        $ref: '#/definitions/GenericLink'
+      paymentReport:
+        $ref: '#/definitions/GenericLink'
+
+  ErrorModel:
+    description: Generic error report structure
+    type: object
+    required:
+      - code
+      - message
+    properties:
+      code:
+        type: integer
+        format: int32
+      message:
+        type: string
+        maxLength: 140
+
+  Account:
+    description: |
+      PSU account that is made available to the TPP
+    type: object
+    required:
+      - id
+      - name
+      - type
+      - Ccy
+      - _links
+    properties:
+      id:
+        description: Id of the account as defined by the PSU and the relevant ASPSP
+        type: string
+        maxLength: 70
+      Iban:
+        description: IBAN of the account that may be provided by the ASPSP
+        type: string
+        pattern: '^[A-Z]{2,2}[0-9]{2,2}[a-zA-Z0-9]{1,30}$'
+      name:
+        description: |
+          Label of the PSU account
+          In case of a delayed debit card transaction set, the name shall specify the holder name and the imputation date
+        type: string
+        maxLength: 70
+      details:
+        description: |
+          Specifications that might be provided by the ASPSP
+          - characteristics of the account
+          - characteristics of the relevant card
+        type: string
+        maxLength: 140
+      linkedAccount:
+        description: Case of a set of pending card transactions, the APSP will provide the relevant cash account the card is set up on.
+        type: string
+        maxLength: 70
+      usage:
+        description: |
+          Specifies the usage of the account
+          - PRIV: private personal account
+          - ORGA: professional account
+        type: string
+        enum:
+        - PRIV
+        - ORGA
+      type:
+        description: |
+          Specifies the type of the account
+          - CACC: Cash account
+        type: string
+        enum:
+        - CACC
+      Ccy:
+        description: Currency used for the account
+        type: string
+        maxLength: 3
+      balances:
+        description: list of balances provided by the ASPSP
+        type: array
+        items:
+          $ref: '#/definitions/Balance'
+        minItems: 1
+      psuStatus:
+        description: Relationship between the PSU and the account
+          - Account Holder
+          - Co-account Holder
+          - Attorney
+        type: string
+        maxLength: 35
+      _links:
+        $ref: '#/definitions/AccountLinks'
+
+  HalAccounts:
+    description:
+      HYPERMEDIA structure used for returning the list of the available accounts to the AISP
+    type: object
+    required:
+      - _embedded
+      - _links
+    properties:
+      _embedded:
+        type: object
+        description:  embedded collection of accounts
+        properties:
+            accounts:
+                type: array
+                items:
+                    $ref: '#/definitions/Account'
+      _links:
+        $ref: '#/definitions/PaginationLinks'
+
+  HalBalances:
+    description:
+      HYPERMEDIA structure used for returning the list of the relevant balances for a given account to the AISP
+    type: object
+    required:
+      - id
+      - balances
+      - _links
+    properties:
+      id:
+        description: Alias of the account
+        type: string
+        maxLength: 70
+      timeStampOfValueRef:
+        description: Reference timestamp
+        type: string
+        format: date-time
+      balances:
+        type: array
+        items:
+          $ref: '#/definitions/Balance'
+        minItems: 1
+      _links:
+        $ref: '#/definitions/BalancesLinks'
+
+  Balance:
+    description: Structure of an account balance
+    type: object
+    required:
+      - name
+      - Amt
+      - Ccy
+      - Sts
+    properties:
+      name:
+        description:  Label of the balance
+        type: string
+        maxLength: 70
+      Amt:
+        description:  Amount of the balance
+        type: string
+        pattern: '^\-{0,1}[0-9]{1,13}(\.[0-9]{0,5}){0,1}$'
+      Ccy:
+        description: Currency used for the account
+        type: string
+        maxLength: 3
+      Sts:
+        $ref: '#/definitions/BalanceStatus'
+      lastCommitedTransaction:
+        description: |
+          Identification of the last commited transaction. This is actually useful for instant balance.
+        type: string
+        maxLength: 16
+
+  Transaction:
+    description: structure of a transaction
+    type: object
+    required:
+      - RmtInf
+      - Amt
+      - Ccy
+      - Sts
+      - CdtDbtInd
+      - BookgDt
+    properties:
+      NtryRef:
+        type: string
+        description: |
+          Technical incremental identification of the transaction.
+      Amt:
+        type: string
+        pattern: '^[0-9]{1,13}(\.[0-9]{0,5}){0,1}$'
+        description:  Amount of balance ISO20022
+      Ccy:
+        type: string
+        description: Currency used for the transaction
+      CdtDbtInd:
+        description: |
+          Accounting flow of the transaction
+          - CRDT: Credit type transaction
+          - DBIT: Debit type transaction
+        type: string
+        enum:
+          - CRDT
+          - DBIT
+      Sts:
+        $ref: '#/definitions/TransactionStatus'
+      BookgDt:
+        description: Booking date of the transaction on the account
+        type: string
+      RmtInf:
+        $ref: '#/definitions/RemittanceInformation'
+
+  HalTransactions:
+    description:
+      HYPERMEDIA structure used for returning the list of the transactions for a given account to the AISP
+    type: object
+    required:
+      - _embedded
+      - _links
+    properties:
+      _embedded:
+        type: object
+        description:  embedded collection of transactions
+        properties:
+            transactions:
+                type: array
+                items:
+                    $ref: '#/definitions/Transaction'
+      _links:
+        $ref: '#/definitions/TransactionsLinks'
+
+  BalanceStatus:
+    description: |
+      Type of balance
+      - CLBD: (ISO20022 ClosingBooked) Accounting Balance
+      - XPCD: (ISO20022 Expected) Instant Balance
+      - VALU: Value-date balance
+      - OTHR: Other Balance
+    type: string
+    enum:
+      - CLBD
+      - XPCD
+      - VALU
+      - OTHR
+
+  TransactionStatus:
+    description: |
+      Type of Transaction
+      - BOOK: (ISO20022 ClosingBooked) Accounted transaction
+      - PDNG: (ISO20022 Expected) Instant Balance Transaction
+      - OTHR: Other
+    type: string
+    enum:
+      - BOOK
+      - PDNG
+      - OTHR
+
+  HalCreditorPaymentActivationRequest:
+    description:
+      HYPERMEDIA structure used for returning the original payment activation request to the PISP
+    type: object
+    required:
+      - GrpHdr
+      - PmtInf
+      - _links
+    properties:
+      GrpHdr:
+        $ref: '#/definitions/GroupHeader'
+      PmtInf:
+        $ref: '#/definitions/PaymentInformation'
+      SplmtryData:
+        $ref: '#/definitions/SupplementaryData'
+      _links:
+        $ref: '#/definitions/PaymentRequestLinks'
+
+  CreditorPaymentActivationRequest:
+    description: |
+      ISO20022: The CreditorPaymentActivationRequest message is sent by the Creditor sending party to the Debtor receiving party, directly or through agents. It is used by a Creditor to request movement of funds from the debtor account to a creditor.
+    type: object
+    required:
+      - GrpHdr
+      - PmtInf
+    properties:
+      GrpHdr:
+        $ref: '#/definitions/GroupHeader'
+      PmtInf:
+        $ref: '#/definitions/PaymentInformation'
+      SplmtryData:
+        $ref: '#/definitions/SupplementaryData'
+
+  SupplementaryData:
+    description: |
+      ISO20022: Additional information that cannot be captured in the structured elements and/or any other specific block.
+
+      API: This structure is used to embed the relevant URLs for returning the status report to the PISP
+    type: object
+    required:
+      - Envlp
+    properties:
+      Envlp:
+        $ref: '#/definitions/SupplementaryDataEnvelope'
+
+  SupplementaryDataEnvelope:
+    description: |
+      ISO20022: Technical element wrapping the supplementary data.
+    type: object
+    required:
+      - successfulReportUrl
+    properties:
+      successfulReportUrl:
+        description: URL to be used by te ASPSP in order to transmit a succesful processing report
+        type: string
+      unsuccessfulReportUrl:
+        description: URL to be used by te ASPSP in order to transmit a unsuccesful processing report
+        type: string
+
+  CreditTransferTransaction:
+    description: |
+      ISO20022: Payment processes required to transfer cash from the debtor to the creditor.
+    type: object
+    required:
+      - PmtId
+      - Amt
+      - Cdtr
+      - CdtrAcct
+      - RmtInf
+    properties:
+      PmtId:
+        $ref: '#/definitions/PaymentIdentification'
+      Amt:
+        $ref: '#/definitions/AmountTypeChoice'
+      CdtrAgt:
+        $ref: '#/definitions/BranchAndFinancialInstitutionIdentification'
+      Cdtr:
+        $ref: '#/definitions/PartyIdentification'
+      CdtrAcct:
+        $ref: '#/definitions/CashAccount'
+      UltmtCdtr:
+        $ref: '#/definitions/PartyIdentification'
+      Purp:
+        $ref: '#/definitions/PurposeChoice'
+      RmtInf:
+        $ref: '#/definitions/RemittanceInformation'
+
+  GroupHeader:
+    description: |
+      ISO20022 : Set of characteristics shared by all individual transactions included in the message.
+    type: object
+    required:
+      - MsgId
+      - CredDtTm
+      - NbOfTxs
+      - InitgPty
+    properties:
+      MsgId:
+        description: |
+          ISO20022: Point to point reference assigned by the instructing party and sent to the next party in the chain to unambiguously identify the message.
+        type: string
+        pattern: '^([a-zA-Z0-9 /\-?:\()\.,'']{1,35})$'
+      CredDtTm:
+        description: |
+          ISO20022: Date and time at which a (group of) payment instruction(s) was created by the instructing party.
+        type: string
+        format: date-time
+      NbOfTxs:
+        description: |
+          ISO20022: Number of individual transactions contained in the message.
+        type: integer
+        minimum: 1
+        maximum: 1
+      InitgPty:
+        $ref: '#/definitions/PartyIdentification'
+
+  PaymentInformation:
+    description: |
+      ISO20022: Set of characteristics that applies to the debit side of the payment transactions included in the creditor payment initiation.
+    type: object
+    required:
+      - PmtInfId
+      - PmtMtd
+      - PmtTpInf
+      - ReqdExctnDt
+      - CdtTrfTx
+    properties:
+      PmtInfId:
+        description: |
+          ISO20022 : Reference assigned by a sending party to unambiguously identify the payment information block within the message.
+        type: string
+        pattern: '^([a-zA-Z0-9 /\-?:\()\.,'']{1,35})$'
+      PmtInfRscId:
+        description: |
+          API: Identifier assigned by the ASPSP for further use of the created resource through API calls
+        type: string
+        pattern: '^([a-zA-Z0-9 /\-?:\()\.,'']{1,35})$'
+      PmtMtd:
+        $ref: '#/definitions/PaymentMethodCode'
+      PmtTpInf:
+        $ref: '#/definitions/PaymentTypeInformation'
+      ReqdExctnDt:
+        description: |
+          ISO20022: Date at which the initiating party requests the clearing agent to process the payment. If payment by cheque, the date when the cheque must be generated by the bank.
+        type: string
+        format: date-time
+      Dbtr:
+        $ref: '#/definitions/PartyIdentification'
+      DbtrAcct:
+        $ref: '#/definitions/CashAccount'
+      DbtrAgt:
+        $ref: '#/definitions/BranchAndFinancialInstitutionIdentification'
+      ChrgBr:
+        description: |
+          - ISO2002: Specifies which party/parties will bear the charges associated with the processing of the payment transaction.
+          - API: Set to SLEV or omitted
+        type: string
+      CdtTrfTx:
+        type: array
+        maxItems: 1
+        minItems: 1
+        items:
+          $ref: '#/definitions/CreditTransferTransaction'
+
+  HalCreditorPaymentActivationRequestStatusReport:
+    description:
+      HYPERMEDIA structure used for returning the payment activation request status report to the PISP
+    type: object
+    required:
+      - OrgnlPmtInfId
+      - PmtInfSts
+      - TxInfAndSts
+      - _links
+    properties:
+      OrgnlPmtInfId:
+        description: |
+          ISO20022: Unique identification, as assigned by the original sending party, to unambiguously identify the original payment information group
+        type: string
+        pattern: '^([a-zA-Z0-9 /\-?:\()\.,'']{1,35})$'
+      OrgnlNbOfTxs:
+        description: |
+          ISO20022: Number of individual transactions contained in the original payment information group.
+        type: integer
+        minimum: 1
+        maximum: 1
+      PmtInfSts:
+        $ref: '#/definitions/TransactionGroupStatusCode'
+      StsRsnInf:
+        $ref: '#/definitions/StatusReasonInformation'
+      TxInfAndSts:
+        type: array
+        maxItems: 1
+        minItems: 1
+        items:
+          $ref: '#/definitions/PaymentTransactionStatusReport'
+      _links:
+        $ref: '#/definitions/PaymentReportLinks'
+
+  OriginalTransactionReference:
+    description: |
+      ISO20022: Key elements used to identify the original transaction that is being referred to.
+
+      API: Some data must be assigned by the ASPSP after successful processing of the payment activation request
+    type: object
+    required:
+      - Amt
+      - ReqdExctnDt
+      - PmtTpInf
+      - PmtMtd
+      - RmtInf
+      - Dbtr
+      - DbtrAgt
+      - CdtrAgt
+      - Cdtr
+      - CdtrAcct
+    properties:
+      Amt:
+        $ref: '#/definitions/AmountTypeChoice'
+      ReqdExctnDt:
+        description: |
+          ISO20022: Date at which the initiating party requests the clearing agent to process the payment.
+        type: string
+        format: date-time
+      PmtTpInf:
+        $ref: '#/definitions/PaymentTypeInformation'
+      PmtMtd:
+        $ref: '#/definitions/PaymentMethodCode'
+      RmtInf:
+        $ref: '#/definitions/RemittanceInformation'
+      Dbtr:
+        $ref: '#/definitions/PartyIdentification'
+      DbtrAgt:
+        $ref: '#/definitions/BranchAndFinancialInstitutionIdentification'
+      CdtrAgt:
+        $ref: '#/definitions/BranchAndFinancialInstitutionIdentification'
+      Cdtr:
+        $ref: '#/definitions/PartyIdentification'
+      CdtrAcct:
+        $ref: '#/definitions/CashAccount'
+      UltmtCdtr:
+        $ref: '#/definitions/PartyIdentification'
+
+  PaymentTransactionStatusReport:
+    description: |
+      ISO20022: Provides information on the original transactions to which the status report message refers.
+    type: object
+    required:
+      - OrgnlInstrId
+      - OrgnlEndToEndId
+      - OrgnlTxRef
+    properties:
+      OrgnlInstrId:
+        description: |
+          ISO20022: Unique identification, as assigned by the original instructing party for the original instructed party, to unambiguously identify the original instruction.
+        type: string
+        pattern: '^([a-zA-Z0-9 /\-?:\()\.,'']{1,35})$'
+      OrgnlEndToEndId:
+        description: |
+          ISO20022: Unique identification, as assigned by the original initiating party, to unambiguously identify the original transaction.
+        type: string
+        pattern: '^([a-zA-Z0-9 /\-?:\()\.,'']{1,35})$'
+      TxSts:
+        $ref: '#/definitions/TransactionIndividualStatusCode'
+      StsRsnInf:
+        $ref: '#/definitions/StatusReasonInformation'
+      OrgnlTxRef:
+        $ref: '#/definitions/OriginalTransactionReference'
+
+  TransactionGroupStatusCode:
+    description: |
+      ISO20022: Specifies the status of the payment information group.
+      API: Mandatory. The following values are allowed.
+        - ACSC (AcceptedSettlementCompleted): Settlement on the debtor's account has been completed.
+        - ACSP (AcceptedSettlementInProcess): All preceding checks such as technical validation and customer profile were successful. Dynamic risk assessment is now also successful and therefore the payment initiation has been accepted for execution.
+        - RJCT (Rejected): Payment initiation  has been rejected.
+    type: string
+    enum:
+      - ACSC
+      - ACSP
+      - RJCT
+
+  TransactionIndividualStatusCode:
+    description: |
+      ISO20022: Specifies the status of the payment information group.
+
+      API: Only the flowwing values are allowed:
+      - RJCT: Payment initiation or individual transaction included in the payment initiation has been rejected.
+      - PDNG: (Pending): Payment initiation or individual transaction included in the payment initiation is pending. Further checks and status update will be performed.
+      - ACSP: All preceding checks such as technical validation and customer profile were successful and therefore the payment initiation has been accepted for execution.
+      - ACSC: Settlement on the debtor's account has been completed
+    type: string
+    enum:
+      - RJCT
+      - PDNG
+      - ACSP
+      - ACSC
+
+  StatusReasonChoice:
+    description: |
+      ISO20022: Provides detailed information on the status reason.
+
+      API: Can only be used in status equal to "RJCT". Only the following values are allowed:
+      - CUST: The reject is due to the debtor: refusal or lack of liquidity
+      - FF01: The reject is due to the original payment activation request which is invalid (syntax, structure or values)
+    type: string
+    enum:
+      - CUST
+      - FF01
+
+  StatusReasonInformation:
+    type: object
+    required:
+      - Rsn
+    properties:
+      Rsn:
+        $ref: '#/definitions/StatusReasonChoice'
+
+  PaymentCoverageRequest:
+    description: Payment coverage request structure. The request must rely either on a cash account or a payment card.
+    type: object
+    required:
+      - amount
+      - accountId
+      - accountIdType
+    properties:
+      amount:
+        $ref: '#/definitions/AmountTypeChoice'
+      accountId:
+        description: |
+          account Id
+        type: string
+      accountIdType:
+        description: |
+          Specifies the type of account id to be looking for.
+        type: string
+        enum:
+          - cardPan
+          - iban
+          - other
+
+# PIISP request and response structures
+  HalCreditorPaymentCoverageReport:
+    description:
+      HYPERMEDIA structure used for returning the payment coverage report to the PIISP
+    type: object
+    required:
+      - request
+      - result
+      - _links
+    properties:
+      request:
+        $ref: '#/definitions/PaymentCoverageRequest'
+      result:
+        description: |
+          Result of the coverage check :
+          - true: the payment can be covered
+          - false: the payment cannot be covered
+        type: boolean
+      _links:
+        $ref: '#/definitions/PaymentCoverageReportLinks'
+  PaymentCoverageReportLinks:
+    description: |
+      links that can be used for further navigation to post another coverage request.
+    type: object
+    required:
+      - self
+    properties:
+      self:
+        $ref: '#/definitions/GenericLink'
+
+
+
+parameters:
+  AuthorizationParameter:
+    name: Authorization
+    in: header
+    description: Access token to be passed as a header
+    required: true
+    type: string
+  IdParameter:
+    name: id
+    in: path
+    description: ID of account to fetch
+    required: true
+    type: string
+  PaymentInformationId:
+    name: paymentInformationId
+    in: path
+    description: ID of the payment information within the Payment activation Request
+    required: true
+    type: string
+  PaymentActivationRequest:
+    name: paymentInitiation
+    in: body
+    description: ISO20022 based payment Initiation Request
+    required: true
+    schema:
+      $ref: '#/definitions/CreditorPaymentActivationRequest'
+  PaymentCoverageRequest:
+    name: paymentCoverage
+    in: body
+    description: parameters of a payment coverage request
+    required: true
+    schema:
+      $ref: '#/definitions/PaymentCoverageRequest'
+  PsuIpAddressHeader:
+    name: Psu-Ip-Address
+    type: string
+    in: header
+    description: IP address used by the PSU's terminal when connecting to the TPP
+  PsuIpPortHeader:
+    name: Psu-Ip-Port
+    type: string
+    in: header
+    description: IP port used by the PSU's terminal when connecting to the TPP
+  PsuHttpMethodHeader:
+    name: Psu-Http-Method
+    type: string
+    in: header
+    description: Http method for the most relevant PSU™s terminal request to the TTP
+  PsuTimeStampHeader:
+    name: Psu-TimeStamp
+    type: string
+    in: header
+    description: Timestamp of the most relevant PSU™s terminal request to the TTP
+  PsuUserAgentHeader:
+    name: Psu-User-Agent
+    type: string
+    in: header
+    description: User-Agent - header field sent by the PSU terminal when connecting to the TPP
+  PsuRefererHeader:
+    name: Psu-Referer
+    type: string
+    in: header
+    description: Referer - header field sent by the PSU terminal when connecting to the TPP
+  PsuAcceptHeader:
+    name: Psu-Accept
+    type: string
+    in: header
+    description: Accept - header field sent by the PSU terminal when connecting to the TPP
+  PsuAcceptCharsetHeader:
+    name: Psu-Accept-Charset
+    type: string
+    in: header
+    description: Accept-Charset - header field sent by the PSU terminal when connecting to the TPP
+  PsuAcceptEncodingHeader:
+    name: Psu-Accept-Encoding
+    type: string
+    in: header
+    description: Accept-Encoding - header field sent by the PSU terminal when connecting to the TPP
+  PsuAcceptLanguageHeader:
+    name: Psu-Accept-Language
+    type: string
+    in: header
+    description: Accept-Language - header field sent by the PSU terminal when connecting to the TPP
+  DigestHeader:
+    name: Digest
+    type: string
+    in: header
+    required: true
+    description: Digest of the body
+  SignatureHeader:
+    name: Signature
+    type: string
+    in: header
+    required: true
+    description: http-signature of the request (cf. https://datatracker.ietf.org/doc/draft-cavage-http-signatures/)
